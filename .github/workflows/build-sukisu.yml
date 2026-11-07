@@ -59,9 +59,16 @@ jobs:
           export PATH="$TC:$PATH"
           MK="make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-"
           $MK crux_defconfig
+          $MK prepare
+          # KSU includes security/selinux/ss/policydb.h, which needs the generated flask.h
           mkdir -p out/security/selinux
-          $MK scripts/selinux/genheaders/genheaders
-          ./out/scripts/selinux/genheaders/genheaders out/security/selinux/flask.h out/security/selinux/av_permissions.h
+          $MK scripts/selinux/genheaders/genheaders || true
+          if [ -x out/scripts/selinux/genheaders/genheaders ]; then
+            ./out/scripts/selinux/genheaders/genheaders out/security/selinux/flask.h out/security/selinux/av_permissions.h
+          else
+            gcc -O2 -I scripts/selinux/mdp -o /tmp/genheaders scripts/selinux/genheaders/genheaders.c
+            /tmp/genheaders out/security/selinux/flask.h out/security/selinux/av_permissions.h
+          fi
           $MK -j"$(nproc)" Image.gz-dtb
           grep -E '^CONFIG_(KSU|KSU_SUSFS)' out/.config
           ls -l out/arch/arm64/boot/Image.gz-dtb
